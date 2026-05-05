@@ -1,0 +1,41 @@
+// Database structure done with https://dbdiagram.io/d
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table users {
+  id integer [primary key]
+  name varchar
+  email varchar [unique]
+  password varchar
+  rating_average float [default: 0]
+  rating_count integer [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table whistles {
+  id integer [primary key]
+  user_id integer [null]
+  audio_path varchar [not null]
+  location point [not null, note: 'PostGIS geometry(Point, 4326)']
+  duration_seconds integer
+  status varchar [default: 'active']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table whistle_ratings {
+  id integer [primary key]
+  whistle_id integer [not null]
+  user_id integer [not null]
+  rating integer [note: '1 to 5']
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (whistle_id, user_id) [unique]
+  }
+}
+
+Ref: whistles.user_id > users.id
+Ref: whistle_ratings.whistle_id > whistles.id
+Ref: whistle_ratings.user_id > users.id
