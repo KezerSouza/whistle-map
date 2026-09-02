@@ -1,22 +1,40 @@
 <?php
 
-use Livewire\Component;
 use Livewire\Attributes\Title;
+use Livewire\Component;
 
 new #[Title('Appearance settings')] class extends Component {
     //
 }; ?>
 
-<section class="w-full">
+<section class="w-100">
     @include('partials.settings-heading')
 
-    <flux:heading class="sr-only">{{ __('Appearance settings') }}</flux:heading>
+    <h2 class="visually-hidden">{{ __('Appearance settings') }}</h2>
 
     <x-pages::settings.layout :heading="__('Appearance')" :subheading="__('Update the appearance settings for your account')">
-        <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
-            <flux:radio value="light" icon="sun">{{ __('Light') }}</flux:radio>
-            <flux:radio value="dark" icon="moon">{{ __('Dark') }}</flux:radio>
-            <flux:radio value="system" icon="computer-desktop">{{ __('System') }}</flux:radio>
-        </flux:radio.group>
+        {{--
+            The preference lives in the browser (localStorage) and is applied to
+            Bootstrap's `data-bs-theme` attribute, so there is no server state.
+        --}}
+        <div class="btn-group" role="group" aria-label="{{ __('Appearance') }}">
+            <input type="radio" class="btn-check" name="appearance" id="appearance-light" data-theme-value="light" autocomplete="off">
+            <label class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" for="appearance-light">
+                <x-icon name="sun" />
+                {{ __('Light') }}
+            </label>
+
+            <input type="radio" class="btn-check" name="appearance" id="appearance-dark" data-theme-value="dark" autocomplete="off">
+            <label class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" for="appearance-dark">
+                <x-icon name="moon" />
+                {{ __('Dark') }}
+            </label>
+
+            <input type="radio" class="btn-check" name="appearance" id="appearance-system" data-theme-value="system" autocomplete="off">
+            <label class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" for="appearance-system">
+                <x-icon name="desktop" />
+                {{ __('System') }}
+            </label>
+        </div>
     </x-pages::settings.layout>
 </section>

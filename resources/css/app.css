@@ -1,1 +1,47 @@
 @import 'bootstrap/dist/css/bootstrap.min.css';
+
+/* Sidebar shell used by the authenticated layouts. */
+.app-sidebar {
+    width: 16rem;
+    flex: 0 0 16rem;
+}
+
+.app-sidebar-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+/* Initials avatar, replacing the Flux avatar component. */
+.avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+/* One-time-password field. */
+.otp-input {
+    max-width: 12rem;
+    letter-spacing: 0.5em;
+    text-indent: 0.5em;
+    font-family: var(--bs-font-monospace);
+}
+
+/* Keeps the map/dashboard placeholders visible while there is no content. */
+.placeholder-tile {
+    aspect-ratio: 16 / 9;
+}
+
+/* Lets flex children shrink below their content width (truncating text). */
+.min-width-0 {
+    min-width: 0;
+}

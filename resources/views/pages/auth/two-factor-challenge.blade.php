@@ -1,101 +1,61 @@
+@php
+    $mode = $errors->has('recovery_code') ? 'recovery' : 'code';
+@endphp
+
 <x-layouts::auth :title="__('Two-factor authentication')">
-    <div class="flex flex-col gap-6">
-        <div
-            class="relative w-full h-auto"
-            x-cloak
-            x-data="{
-                showRecoveryInput: @js($errors->has('recovery_code')),
-                code: '',
-                recovery_code: '',
-                focusOtp() {
-                    this.$nextTick(() => this.$refs.otp?.querySelector('input')?.focus());
-                },
-                init() {
-                    if (! this.showRecoveryInput) {
-                        this.focusOtp();
-                    }
-                },
-                toggleInput() {
-                    this.showRecoveryInput = !this.showRecoveryInput;
-
-                    this.code = '';
-                    this.recovery_code = '';
-
-                    $nextTick(() => {
-                        this.showRecoveryInput
-                            ? this.$refs.recovery_code?.focus()
-                            : this.focusOtp();
-                    });
-                },
-            }"
-        >
-            <div x-show="!showRecoveryInput">
-                <x-auth-header
-                    :title="__('Authentication code')"
-                    :description="__('Enter the authentication code provided by your authenticator application.')"
-                />
-            </div>
-
-            <div x-show="showRecoveryInput">
-                <x-auth-header
-                    :title="__('Recovery code')"
-                    :description="__('Please confirm access to your account by entering one of your emergency recovery codes.')"
-                />
-            </div>
-
-            <form method="POST" action="{{ route('two-factor.login.store') }}">
-                @csrf
-
-                <div class="space-y-5 text-center">
-                    <div x-show="!showRecoveryInput">
-                        <div class="flex items-center justify-center my-5" x-ref="otp">
-                            <flux:otp
-                                x-model="code"
-                                length="6"
-                                name="code"
-                                label="OTP Code"
-                                label:sr-only
-                                class="mx-auto"
-                             />
-                        </div>
-                    </div>
-
-                    <div x-show="showRecoveryInput">
-                        <div class="my-5">
-                            <flux:input
-                                type="text"
-                                name="recovery_code"
-                                x-ref="recovery_code"
-                                x-bind:required="showRecoveryInput"
-                                autocomplete="one-time-code"
-                                x-model="recovery_code"
-                            />
-                        </div>
-
-                        @error('recovery_code')
-                            <flux:text color="red">
-                                {{ $message }}
-                            </flux:text>
-                        @enderror
-                    </div>
-
-                    <flux:button
-                        variant="primary"
-                        type="submit"
-                        class="w-full"
-                    >
-                        {{ __('Continue') }}
-                    </flux:button>
-                </div>
-
-                <div class="mt-5 space-x-0.5 text-sm leading-5 text-center">
-                    <span class="opacity-50">{{ __('or you can') }}</span>
-                    <div class="inline font-medium underline cursor-pointer opacity-80">
-                        <span x-show="!showRecoveryInput" @click="toggleInput()">{{ __('login using a recovery code') }}</span>
-                        <span x-show="showRecoveryInput" @click="toggleInput()">{{ __('login using an authentication code') }}</span>
-                    </div>
-                </div>
-            </form>
+    <div class="d-flex flex-column gap-4">
+        <div class="{{ $mode === 'code' ? '' : 'd-none' }}" data-otp-mode-header="code">
+            <x-auth-header
+                :title="__('Authentication code')"
+                :description="__('Enter the authentication code provided by your authenticator application.')"
+            />
         </div>
+
+        <div class="{{ $mode === 'recovery' ? '' : 'd-none' }}" data-otp-mode-header="recovery">
+            <x-auth-header
+                :title="__('Recovery code')"
+                :description="__('Please confirm access to your account by entering one of your emergency recovery codes.')"
+            />
+        </div>
+
+        <form method="POST" action="{{ route('two-factor.login.store') }}" data-otp-modes="{{ $mode }}">
+            @csrf
+
+            <div class="d-flex flex-column gap-4 text-center">
+                <div class="{{ $mode === 'code' ? '' : 'd-none' }}" data-otp-mode="code">
+                    <x-ui.otp
+                        name="code"
+                        :label="__('Authentication code')"
+                        length="6"
+                        autofocus
+                        @disabled($mode !== 'code')
+                        @required($mode === 'code')
+                    />
+                </div>
+
+                <div class="{{ $mode === 'recovery' ? '' : 'd-none' }}" data-otp-mode="recovery">
+                    <x-ui.input
+                        name="recovery_code"
+                        :label="__('Recovery code')"
+                        type="text"
+                        autocomplete="one-time-code"
+                        @disabled($mode !== 'recovery')
+                        @required($mode === 'recovery')
+                    />
+                </div>
+
+                <x-ui.button variant="primary" type="submit" class="w-100">
+                    {{ __('Continue') }}
+                </x-ui.button>
+            </div>
+
+            <p class="mt-4 mb-0 text-center small text-body-secondary">
+                {{ __('or you can') }}
+                <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-otp-mode-toggle>
+                    <span data-otp-mode-label="code" class="{{ $mode === 'code' ? '' : 'd-none' }}">{{ __('login using a recovery code') }}</span>
+                    <span data-otp-mode-label="recovery" class="{{ $mode === 'recovery' ? '' : 'd-none' }}">{{ __('login using an authentication code') }}</span>
+                </button>
+            </p>
+        </form>
     </div>
 </x-layouts::auth>

@@ -1,29 +1,20 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white antialiased dark:bg-linear-to-b dark:from-neutral-950 dark:to-neutral-900">
-        <div class="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-            <div class="flex w-full max-w-sm flex-col gap-2">
-                <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
-                    <span class="flex h-9 w-9 mb-1 items-center justify-center rounded-md">
-                        <x-app-logo-icon class="size-9 fill-current text-black dark:text-white" />
-                    </span>
-                    <span class="sr-only">{{ config('app.name', 'Laravel') }}</span>
+    <body class="min-vh-100 bg-body-tertiary">
+        <div class="container d-flex flex-column justify-content-center align-items-center min-vh-100 py-5">
+            <div class="w-100" style="max-width: 24rem">
+                <a href="{{ route('home') }}" class="d-flex flex-column align-items-center gap-2 text-decoration-none text-body mb-4" wire:navigate>
+                    <x-app-logo-icon style="width: 2.25rem; height: 2.25rem" />
+                    <span class="visually-hidden">{{ config('app.name', 'Laravel') }}</span>
                 </a>
-                <div class="flex flex-col gap-6">
-                    {{ $slot }}
-                </div>
+
+                {{ $slot }}
             </div>
         </div>
 
-        @persist('toast')
-            <flux:toast.group>
-                <flux:toast />
-            </flux:toast.group>
-        @endpersist
-
-        @fluxScripts
+        <x-ui.toasts />
     </body>
 </html>

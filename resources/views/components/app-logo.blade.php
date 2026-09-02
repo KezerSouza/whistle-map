@@ -1,17 +1,7 @@
-@props([
-    'sidebar' => false,
-])
+<a {{ $attributes->class('d-inline-flex align-items-center gap-2 text-decoration-none text-body') }}>
+    <span class="d-inline-flex align-items-center justify-content-center rounded bg-primary text-white" style="width: 2rem; height: 2rem">
+        <x-app-logo-icon style="width: 1.15rem; height: 1.15rem" />
+    </span>
 
-@if($sidebar)
-    <flux:sidebar.brand name="Laravel Starter Kit" {{ $attributes }}>
-        <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md bg-accent-content text-accent-foreground">
-            <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
-        </x-slot>
-    </flux:sidebar.brand>
-@else
-    <flux:brand name="Laravel Starter Kit" {{ $attributes }}>
-        <x-slot name="logo" class="flex aspect-square size-8 items-center justify-center rounded-md bg-accent-content text-accent-foreground">
-            <x-app-logo-icon class="size-5 fill-current text-white dark:text-black" />
-        </x-slot>
-    </flux:brand>
-@endif
+    <span class="fw-semibold">{{ config('app.name', 'Laravel') }}</span>
+</a>
