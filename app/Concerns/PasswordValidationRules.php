@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use Illuminate\Contracts\Validation\Rule;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rules\Password;
 
@@ -10,7 +11,10 @@ trait PasswordValidationRules
     /**
      * Get the validation rules used to validate passwords.
      *
-     * @return array<int, ValidationRule|array<mixed>|string>
+     * Password::default() returns a Password instance, which implements the
+     * legacy Rule contract rather than ValidationRule.
+     *
+     * @return array<int, Rule|ValidationRule|array<mixed>|string>
      */
     protected function passwordRules(): array
     {

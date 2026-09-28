@@ -1,0 +1,289 @@
+name: ci-cd
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+# The default token only reads; individual jobs widen this where they need to
+# publish an image or upload code scanning results.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHP_VERSION: '8.4'
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Stage 1 — static verification: the code is inspected without running it.
+  # ---------------------------------------------------------------------------
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    environment: Testing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      - name: Analyse types and logic
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+
+      - name: Audit PHP dependencies for known vulnerabilities
+        run: composer audit
+
+      - name: Audit JavaScript dependencies for known vulnerabilities
+        run: npm audit --audit-level=high
+
+  # ---------------------------------------------------------------------------
+  # GitHub's own static analysis engine. It has no PHP support, so it covers the
+  # JavaScript bundle and the workflow definitions themselves.
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - javascript-typescript
+          - actions
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  # ---------------------------------------------------------------------------
+  # Stage 2 — dynamic verification: the code is executed against a real
+  # database and a real asset build.
+  # ---------------------------------------------------------------------------
+  tests:
+    name: Dynamic analysis (test suite)
+    runs-on: ubuntu-latest
+    environment: Testing
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: whistle_map_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          tools: composer:v2
+          coverage: xdebug
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Prepare the environment file
+        run: cp .env.example .env
+
+      - name: Generate the application key
+        run: php artisan key:generate
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Run the test suite
+        run: ./vendor/bin/pest
+
+  # ---------------------------------------------------------------------------
+  # Stage 3 — build the immutable artifact that both environments will run.
+  # Nothing is rebuilt per environment; the same digest is promoted instead.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    needs:
+      - static-analysis
+      - codeql
+      - tests
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # Container registries reject uppercase paths, and the repository owner
+      # is not lowercase, so the name is normalised here.
+      - name: Resolve the image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate against the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # Stage 4 — staging. Every push that passes verification lands here.
+  # ---------------------------------------------------------------------------
+  deploy-staging:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    needs: build
+
+    environment:
+      name: staging
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Authenticate against the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote the verified image to staging
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:staging" \
+            "${IMAGE}@${DIGEST}"
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+
+      - name: Report what staging now runs
+        run: |
+          echo "### Staging" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`${IMAGE}:staging\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Digest: \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+
+  # ---------------------------------------------------------------------------
+  # Stage 5 — production. Only the main branch reaches it, and the environment
+  # itself is configured in the repository settings to require an approval.
+  # ---------------------------------------------------------------------------
+  deploy-production:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - deploy-staging
+    if: github.ref == 'refs/heads/main'
+
+    environment:
+      name: production
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Authenticate against the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Promote the staged image to production
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:production" \
+            --tag "${IMAGE}:latest" \
+            "${IMAGE}@${DIGEST}"
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+
+      - name: Report what production now runs
+        run: |
+          echo "### Production" >> "$GITHUB_STEP_SUMMARY"
+          echo "Image: \`${IMAGE}:production\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Digest: \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          DIGEST: ${{ needs.build.outputs.digest }}

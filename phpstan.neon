@@ -1,0 +1,12 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Pest binds test closures at runtime, which PHPStan cannot model, so the
+    # test suite is covered by Pest itself rather than by static analysis.
+    paths:
+        - app
+        - database
+        - routes
+
+    level: 5
